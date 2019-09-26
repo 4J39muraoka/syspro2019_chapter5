@@ -2,6 +2,9 @@
 
 from smbus2 import SMBus
 import time
+import datetime
+import json
+import collections as cl
 
 bus_number  = 1
 i2c_address = 0x76
@@ -66,9 +69,9 @@ def readData():
 	temp_raw = (data[3] << 12) | (data[4] << 4) | (data[5] >> 4)
 	hum_raw  = (data[6] << 8)  |  data[7]
 	
-	compensate_T(temp_raw)
-	compensate_P(pres_raw)
-	compensate_H(hum_raw)
+	return [compensate_T(temp_raw), 
+	        compensate_P(pres_raw), 
+	        compensate_H(hum_raw)]
 
 def compensate_P(adc_P):
 	global  t_fine
@@ -92,7 +95,7 @@ def compensate_P(adc_P):
 	v2 = ((pressure / 4.0) * digP[7]) / 8192.0
 	pressure = pressure + ((v1 + v2 + digP[6]) / 16.0)  
 
-	print "pressure : %7.2f hPa" % (pressure/100)
+	return pressure
 
 def compensate_T(adc_T):
 	global t_fine
@@ -100,7 +103,8 @@ def compensate_T(adc_T):
 	v2 = (adc_T / 131072.0 - digT[0] / 8192.0) * (adc_T / 131072.0 - digT[0] / 8192.0) * digT[2]
 	t_fine = v1 + v2
 	temperature = t_fine / 5120.0
-	print "temp : %-6.2f ℃" % (temperature) 
+	
+        return temperature 
 
 def compensate_H(adc_H):
 	global t_fine
@@ -114,7 +118,8 @@ def compensate_H(adc_H):
 		var_h = 100.0
 	elif var_h < 0.0:
 		var_h = 0.0
-	print "hum : %6.2f ％" % (var_h)
+	
+        return var_h
 
 
 def setup():
@@ -134,15 +139,25 @@ def setup():
 	writeReg(0xF4,ctrl_meas_reg)
 	writeReg(0xF5,config_reg)
 
+def get_now():
+    dt_now = datetime.datetime.now()
+    return dt_now.strftime("%Y-%m-%d %H:%M:%S")
 
-setup()
+def make_dict():
+    dict = cl.OrderedDict()
+    dict['time'] = get_now()
+    data = readData()
+    dict['temp'] = "{0:.2f}".format(data[0])
+    dict['pres'] = "{0:.2f}".format(data[1])
+    dict['hum'] = "{0:.2f}".format(data[2])
 
-if __name__ == '__main__':
-    try:
-        while 1 :
-            get_calib_param()
-            readData()
-            print
-            time.sleep(10)
-    except KeyboardInterrupt:
-        pass
+    return dict
+
+fw = open('sokutei.json', 'w')
+data_dict = cl.OrderedDict()
+for n in range(10):
+    get_calib_param()
+    data_dict['id%d'%(n)] = make_dict()
+    time.sleep(10)
+
+json.dump(data_dict, fw, indent=4)
