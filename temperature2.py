@@ -148,7 +148,7 @@ def make_dict():
     dict['time'] = get_now()
     data = readData()
     dict['temp'] = "{0:.2f}".format(data[0])
-    dict['pres'] = "{0:.2f}".format(data[1])
+    dict['pres'] = "{0:.2f}".format(data[1]/100)
     dict['hum'] = "{0:.2f}".format(data[2])
 
     return dict
